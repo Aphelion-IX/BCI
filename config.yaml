@@ -1,0 +1,55 @@
+# BCI -> Dynamics 365 sync configuration.
+
+# Incremental strategy: each run asks BCI for projects updated in the last N days.
+# Keep it larger than the run interval (daily run, 2 days) so a missed run loses nothing;
+# upserts make the overlap harmless.
+window_days: 2
+# Set true to use BCI's server-side getAllSinceLastQuery instead (BCI remembers your last call;
+# a failed run can then skip data, so the window approach above is safer).
+since_last: false
+
+# Search filters passed straight to the BCI projects API (see doc/projects.htm).
+# Lists are joined with commas. Look up IDs in the BCI master-table pages (States, Categories, Stages...).
+filters:
+  # state: [1, 2]
+  # cat: [3]
+  # stage: [2, 3]
+  # project_value_min: 5      # millions
+  # keyword: school
+
+projects:
+  entity_set: new_bciprojects          # Dataverse entity set name (plural logical name)
+  key:
+    crm_field: new_bciprojectrefid     # alternate key column defined on that table
+    bci_field: PROJECTREFID
+  mapping:                             # crm column: BCI field
+    new_name: PROJECT_NAME
+    new_projectid: PROJECTID
+    new_version: VERSION
+    new_address: ADDRESS
+    new_town: TOWN
+    new_postcode: POSTCODE
+    new_value: VALUE
+    new_status: PROJECT_STATUS
+    new_stage: PROJECTSTAGE
+    new_category: CAT_1_NAME
+    new_subcategory: SUBCAT_1_NAME
+    new_constructionstart: CON_START
+    new_constructionend: CON_END
+    new_description: REMARKS_4000
+    new_lastpublished: LAST_PUBLISHED
+
+# Optional: also pull companies attached to the synced projects into Accounts.
+companies:
+  enabled: false
+  entity_set: accounts
+  key:
+    crm_field: new_bcicompanyid        # alternate key you add to Account
+    bci_field: COMPANYID
+  mapping:
+    name: COMPANY_NAME
+    telephone1: PHONE
+    emailaddress1: EMAIL
+    websiteurl: WEBSITE
+    address1_city: TOWN
+    address1_postalcode: POSTCODE
