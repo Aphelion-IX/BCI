@@ -28,6 +28,20 @@ python -m bci_sync.sync --source estimateone --dry-run
 python -m bci_sync.sync --source estimateone --export-only --export-e1-xml e1.xml
 ```
 
+## Web console (cross-reference + automations)
+```
+python -m bci_sync.webapp        # http://127.0.0.1:8080
+```
+- **Cross-reference**: pairs BCI projects with EstimateOne matches by name and address similarity (adjustable threshold),
+  lists what is only in one system, lets you confirm / reject / manually link pairs (saved in `data/links.json`), and exports XML.
+- **Automations**: saved jobs with sources, BCI filters, an action (`preview`, `xml`, or `crm` sync to Dynamics), optional
+  cross-reference, and a schedule (manual, every N minutes, daily). Schedules run while the web server is running.
+- **Run history**: results, counts and links to exported files (`data/exports/`).
+- Uses the same env vars as the CLI. Any source without credentials runs on built-in **demo data** (badge in the header).
+- The app has **no login** and can write to your CRM, so it binds to `127.0.0.1` by default. Don't expose it (`HOST=0.0.0.0`)
+  without putting authentication in front of it. Credentials stay server-side and are never sent to the browser.
+- The GitHub Actions cron and the in-app scheduler are independent; use one or the other for the same job.
+
 ## Local use
 ```
 pip install -r requirements.txt

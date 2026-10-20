@@ -1,0 +1,261 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>BCI Sync Console</title>
+<link rel="icon" href="data:,">
+<style>
+:root{--bg:#f6f7f9;--card:#fff;--ink:#1c2430;--mute:#667085;--line:#e3e7ee;--accent:#2457d6;--ok:#14804a;--warn:#b45309;--bad:#b42318;--okbg:#e7f6ee;--warnbg:#fdf2dc;--badbg:#fde8e6;--accbg:#e8eefc}
+@media (prefers-color-scheme:dark){:root:not([data-theme=light]){--bg:#0f141b;--card:#171e28;--ink:#e7ebf2;--mute:#97a3b6;--line:#2a3442;--accent:#7aa2ff;--ok:#5fd39a;--warn:#f5b45b;--bad:#ff8f84;--okbg:#12301f;--warnbg:#38290f;--badbg:#3a1714;--accbg:#1c2a4d}}
+*{box-sizing:border-box}
+a{color:var(--accent)}
+body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.45 system-ui,-apple-system,Segoe UI,Roboto,sans-serif}
+header{background:var(--card);border-bottom:1px solid var(--line);padding:12px 16px;display:flex;flex-wrap:wrap;gap:12px;align-items:center;justify-content:space-between}
+h1{font-size:16px;margin:0}
+main{max-width:1200px;margin:0 auto;padding:16px}
+nav{display:flex;gap:4px;margin-bottom:16px;flex-wrap:wrap}
+nav button{border:1px solid var(--line);background:var(--card);color:var(--ink);padding:8px 14px;border-radius:8px;cursor:pointer;font:inherit}
+nav button.on{background:var(--accent);border-color:var(--accent);color:#fff}
+.badge{display:inline-block;padding:2px 8px;border-radius:99px;font-size:12px;font-weight:600;margin-left:4px}
+.live{background:var(--okbg);color:var(--ok)}.demo{background:var(--warnbg);color:var(--warn)}.off{background:var(--badbg);color:var(--bad)}.acc{background:var(--accbg);color:var(--accent)}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:14px;margin-bottom:14px}
+.row{display:flex;gap:12px;flex-wrap:wrap;align-items:end}
+.tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:14px}
+.tile{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:12px}
+.tile b{display:block;font-size:26px}.tile span{color:var(--mute)}
+label{display:flex;flex-direction:column;gap:4px;font-size:12px;color:var(--mute)}
+input,select,textarea{font:inherit;padding:7px 9px;border:1px solid var(--line);border-radius:7px;background:var(--bg);color:var(--ink);min-width:0}
+textarea{width:100%;font-family:ui-monospace,Menlo,monospace;font-size:12px}
+button.btn{font:inherit;padding:7px 12px;border-radius:7px;border:1px solid var(--line);background:var(--card);color:var(--ink);cursor:pointer}
+button.btn.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+button.btn.danger{color:var(--bad)}
+button.btn:disabled{opacity:.5;cursor:default}
+table{width:100%;border-collapse:collapse}
+th,td{text-align:left;padding:8px;border-bottom:1px solid var(--line);vertical-align:top}
+th{font-size:12px;color:var(--mute);font-weight:600}
+.scroll{overflow-x:auto}
+.small{font-size:12px;color:var(--mute)}
+.bar{height:6px;background:var(--line);border-radius:3px;width:70px;margin-top:4px}.bar i{display:block;height:100%;border-radius:3px;background:var(--accent)}
+.two{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+@media(max-width:760px){.two{grid-template-columns:1fr}}
+.pick{cursor:pointer}.pick.sel{background:var(--accbg)}
+.err{color:var(--bad);margin:8px 0}
+dialog{border:1px solid var(--line);border-radius:12px;background:var(--card);color:var(--ink);width:min(640px,94vw);padding:18px}
+dialog::backdrop{background:rgba(0,0,0,.45)}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}.grid .full{grid-column:1/-1}
+.chk{flex-direction:row;align-items:center;gap:6px;color:var(--ink);font-size:14px}
+.hidden{display:none}
+</style>
+</head>
+<body>
+<header>
+  <h1>BCI Sync Console</h1>
+  <div id="status" class="small">Loading…</div>
+</header>
+<main>
+  <nav>
+    <button data-tab="xref" class="on">Cross-reference</button>
+    <button data-tab="auto">Automations</button>
+    <button data-tab="runs">Run history</button>
+  </nav>
+
+  <section id="tab-xref">
+    <div class="card row">
+      <label>Updated in last (days)<input id="days" type="number" min="1" max="90" value="7" style="width:90px"></label>
+      <label>Match threshold <span id="thv">0.60</span><input id="th" type="range" min="0.3" max="0.95" step="0.05" value="0.6"></label>
+      <button class="btn primary" id="load">Load / refresh</button>
+      <a class="btn" id="xml" href="#" style="text-decoration:none">Export matches XML</a>
+      <span class="small">BCI and EstimateOne share no ID, so projects are paired by name and address similarity. Confirm or reject pairs and your decision is remembered.</span>
+    </div>
+    <div id="xerr" class="err"></div>
+    <div class="tiles" id="tiles"></div>
+    <div class="card"><b>Matched projects</b>
+      <div class="scroll"><table id="matches"><thead><tr><th>BCI project</th><th>EstimateOne project</th><th>Score</th><th>Status</th><th></th></tr></thead><tbody></tbody></table></div>
+    </div>
+    <div class="card row" style="justify-content:space-between"><span class="small" id="linkhint">Select one project from each list below to link them manually.</span><button class="btn primary" id="linkbtn" disabled>Link selected</button></div>
+    <div class="two">
+      <div class="card"><b>In BCI only</b> <span class="small">(not seen in EstimateOne)</span><div class="scroll"><table id="bonly"><tbody></tbody></table></div></div>
+      <div class="card"><b>In EstimateOne only</b> <span class="small">(not in BCI)</span><div class="scroll"><table id="eonly"><tbody></tbody></table></div></div>
+    </div>
+  </section>
+
+  <section id="tab-auto" class="hidden">
+    <div class="row" style="margin-bottom:12px"><button class="btn primary" id="newauto">New automation</button>
+      <span class="small">An automation is a saved job: sources, filters, an action and a schedule. Schedules run while this server is running.</span></div>
+    <div id="autos"></div>
+  </section>
+
+  <section id="tab-runs" class="hidden">
+    <div class="card scroll"><table id="runtable"><thead><tr><th>Started</th><th>Automation</th><th>Action</th><th>Result</th><th>Details</th></tr></thead><tbody></tbody></table></div>
+  </section>
+</main>
+
+<dialog id="dlg">
+  <form method="dialog" id="form" class="grid">
+    <label class="full">Name<input id="f-name" required></label>
+    <label class="chk"><input type="checkbox" id="f-bci" checked> BCI projects</label>
+    <label class="chk"><input type="checkbox" id="f-e1" checked> EstimateOne Speci-finder</label>
+    <label>Action
+      <select id="f-action">
+        <option value="preview">Preview only (fetch + cross-reference, write nothing)</option>
+        <option value="xml">Export XML files</option>
+        <option value="crm">Sync to Dynamics 365</option>
+      </select></label>
+    <label>BCI window: updated in last (days)<input id="f-window" type="number" min="1" value="2"></label>
+    <label class="chk full"><input type="checkbox" id="f-xref" checked> Cross-reference BCI against EstimateOne (needs both sources)</label>
+    <label>Match threshold<input id="f-th" type="number" min="0.3" max="0.95" step="0.05" value="0.6"></label>
+    <label>Schedule
+      <select id="f-sched"><option value="manual">Manual only</option><option value="interval">Every N minutes</option><option value="daily">Daily at a time</option></select></label>
+    <label id="l-min" class="hidden">Every (minutes, min 15)<input id="f-min" type="number" min="15" value="360"></label>
+    <label id="l-time" class="hidden">Time (server local)<input id="f-time" type="time" value="05:00"></label>
+    <label class="full">BCI filters, one <code>name=value</code> per line (e.g. <code>state=1,2</code>, <code>keyword=school</code>, <code>project_value_min=5</code>)
+      <textarea id="f-filters" rows="4"></textarea></label>
+    <label class="chk"><input type="checkbox" id="f-enabled" checked> Enabled</label>
+    <div class="full err" id="ferr"></div>
+    <div class="full row" style="justify-content:flex-end">
+      <button type="button" class="btn" id="cancel">Cancel</button>
+      <button type="submit" class="btn primary" id="save" value="save">Save</button>
+    </div>
+  </form>
+</dialog>
+
+<script>
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const api = async (path, opts) => {
+  const r = await fetch(path, opts && {...opts, headers: {"Content-Type": "application/json"}});
+  if (r.status === 204) return null;
+  const body = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(body.error || r.statusText);
+  return body;
+};
+const money = v => v == null || v === "" ? "" : (v >= 1e6 ? "$" + (v / 1e6).toFixed(1) + "M" : "$" + Number(v).toLocaleString()) ;
+
+// ---- tabs
+document.querySelectorAll("nav button").forEach(b => b.onclick = () => {
+  document.querySelectorAll("nav button").forEach(x => x.classList.toggle("on", x === b));
+  ["xref", "auto", "runs"].forEach(t => $("#tab-" + t).classList.toggle("hidden", t !== b.dataset.tab));
+  if (b.dataset.tab === "auto") loadAutos();
+  if (b.dataset.tab === "runs") loadRuns();
+});
+
+// ---- status
+api("/api/status").then(s => {
+  const b = (n, live) => `${n}<span class="badge ${live ? "live" : "demo"}">${live ? "live" : "demo data"}</span>`;
+  $("#status").innerHTML = b("BCI", s.bci_live) + " · " + b("EstimateOne", s.e1_live) +
+    ` · Dynamics<span class="badge ${s.crm_live ? "live" : "off"}">${s.crm_live ? "connected" : "not configured"}</span>`;
+});
+
+// ---- cross-reference
+let sel = {b: null, e: null};
+$("#th").oninput = () => $("#thv").textContent = (+$("#th").value).toFixed(2);
+$("#load").onclick = () => loadXref(true);
+const qs = refresh => `days=${$("#days").value}&threshold=${$("#th").value}` + (refresh ? "&refresh=1" : "");
+async function loadXref(refresh) {
+  $("#xerr").textContent = ""; $("#load").disabled = true;
+  try {
+    const d = await api("/api/crossref?" + qs(refresh));
+    $("#xml").href = "/api/crossref.xml?" + qs(false);
+    $("#tiles").innerHTML = [["Matched", d.matches.length], ["BCI only", d.bci_only.length], ["EstimateOne only", d.e1_only.length],
+      ["Need review", d.matches.filter(m => m.status === "possible").length]].map(([k, v]) => `<div class="tile"><b>${v}</b><span>${k}</span></div>`).join("");
+    $("#matches tbody").innerHTML = d.matches.map(m => `<tr>
+      <td><b>${esc(m.bci.name)}</b><div class="small">${esc(m.bci.address)} · ${money(m.bci.value)}</div></td>
+      <td><b>${esc(m.e1.name)}</b><div class="small">${esc(m.e1.address)} · ${esc(m.e1.extra)}</div></td>
+      <td>${(m.score * 100).toFixed(0)}%<div class="bar"><i style="width:${Math.min(100, m.score * 100)}%"></i></div></td>
+      <td><span class="badge ${m.status === "possible" ? "demo" : "live"}">${m.status}</span></td>
+      <td style="white-space:nowrap">${m.status !== "confirmed" ? `<button class="btn" data-d="confirmed" data-b="${esc(m.bci.id)}" data-e="${esc(m.e1.id)}">Confirm</button> ` : `<button class="btn" data-d="clear" data-b="${esc(m.bci.id)}" data-e="${esc(m.e1.id)}">Unlink</button> `}
+        <button class="btn danger" data-d="rejected" data-b="${esc(m.bci.id)}" data-e="${esc(m.e1.id)}">Not a match</button></td></tr>`).join("") || `<tr><td colspan="5" class="small">No matches at this threshold.</td></tr>`;
+    const list = (id, rows, side) => $(id + " tbody").innerHTML = rows.map(r => `<tr class="pick" data-side="${side}" data-id="${esc(r.id)}">
+      <td><b>${esc(r.name)}</b><div class="small">${esc(r.address)}${r.extra ? " · " + esc(r.extra) : ""}</div></td></tr>`).join("") || `<tr><td class="small">Nothing here.</td></tr>`;
+    list("#bonly", d.bci_only, "b"); list("#eonly", d.e1_only, "e");
+    sel = {b: null, e: null}; updLink();
+  } catch (e) { $("#xerr").textContent = e.message; }
+  $("#load").disabled = false;
+}
+const updLink = () => { $("#linkbtn").disabled = !(sel.b && sel.e); };
+document.addEventListener("click", async ev => {
+  const row = ev.target.closest("tr.pick");
+  if (row) {
+    const s = row.dataset.side;
+    document.querySelectorAll(`tr.pick[data-side=${s}]`).forEach(r => r.classList.remove("sel"));
+    if (sel[s] === row.dataset.id) sel[s] = null; else { sel[s] = row.dataset.id; row.classList.add("sel"); }
+    updLink(); return;
+  }
+  const btn = ev.target.closest("button[data-d]");
+  if (btn) { await api("/api/links", {method: "POST", body: JSON.stringify({bci_id: btn.dataset.b, e1_id: btn.dataset.e, decision: btn.dataset.d})}); loadXref(false); }
+});
+$("#linkbtn").onclick = async () => { await api("/api/links", {method: "POST", body: JSON.stringify({bci_id: sel.b, e1_id: sel.e, decision: "confirmed"})}); loadXref(false); };
+
+// ---- automations
+let autos = [];
+const schedText = s => s.type === "interval" ? `every ${s.minutes} min` : s.type === "daily" ? `daily at ${s.time}` : "manual";
+async function loadAutos() {
+  autos = await api("/api/automations");
+  $("#autos").innerHTML = autos.map(a => `<div class="card">
+    <div class="row" style="justify-content:space-between"><div><b>${esc(a.name)}</b>
+      <span class="badge ${a.enabled ? "live" : "off"}">${a.enabled ? "enabled" : "paused"}</span>
+      <span class="badge acc">${esc(a.action)}</span></div>
+      <div><button class="btn primary" data-run="${a.id}">Run now</button> <button class="btn" data-edit="${a.id}">Edit</button> <button class="btn danger" data-del="${a.id}">Delete</button></div></div>
+    <div class="small">Sources: ${a.sources.join(" + ")} · Schedule: ${schedText(a.schedule)} · BCI window ${a.window_days}d${a.crossref ? " · cross-reference on" : ""}</div>
+    <div class="small">Filters: ${Object.entries(a.filters).map(([k, v]) => esc(k + "=" + v)).join(", ") || "none"}</div>
+    <div class="small" id="res-${a.id}"></div></div>`).join("") || `<div class="card small">No automations yet. Create one to get started.</div>`;
+}
+$("#autos").onclick = async ev => {
+  const t = ev.target;
+  if (t.dataset.run) {
+    t.disabled = true; t.textContent = "Running…";
+    try {
+      const r = await api(`/api/automations/${t.dataset.run}/run`, {method: "POST"});
+      const x = r.crossref ? ` · ${r.crossref.matched} matched, ${r.crossref.bci_only} BCI-only, ${r.crossref.e1_only} E1-only` : "";
+      $("#res-" + t.dataset.run).innerHTML = `Last run: <b>${r.status}</b> — fetched BCI ${r.fetched?.bci ?? 0}, E1 ${r.fetched?.estimateone ?? 0}${x} ${esc(r.message)} ` +
+        r.files.map(f => `<a href="/api/exports/${encodeURIComponent(f)}">${esc(f)}</a>`).join(" ");
+    } catch (e) { $("#res-" + t.dataset.run).textContent = e.message; }
+    t.disabled = false; t.textContent = "Run now";
+  }
+  if (t.dataset.edit) openForm(autos.find(a => a.id === t.dataset.edit));
+  if (t.dataset.del && confirm("Delete this automation?")) { await api("/api/automations/" + t.dataset.del, {method: "DELETE"}); loadAutos(); }
+};
+let editing = null;
+const syncSched = () => { $("#l-min").classList.toggle("hidden", $("#f-sched").value !== "interval"); $("#l-time").classList.toggle("hidden", $("#f-sched").value !== "daily"); };
+$("#f-sched").onchange = syncSched;
+$("#newauto").onclick = () => openForm(null);
+$("#cancel").onclick = () => $("#dlg").close();
+function openForm(a) {
+  editing = a; $("#ferr").textContent = "";
+  $("#f-name").value = a?.name || ""; $("#f-bci").checked = a ? a.sources.includes("bci") : true; $("#f-e1").checked = a ? a.sources.includes("estimateone") : true;
+  $("#f-action").value = a?.action || "preview"; $("#f-window").value = a?.window_days || 2; $("#f-xref").checked = a ? a.crossref : true;
+  $("#f-th").value = a?.threshold || 0.6; $("#f-sched").value = a?.schedule.type || "manual"; $("#f-min").value = a?.schedule.minutes || 360;
+  $("#f-time").value = a?.schedule.time || "05:00"; $("#f-enabled").checked = a ? a.enabled : true;
+  $("#f-filters").value = Object.entries(a?.filters || {}).map(([k, v]) => `${k}=${v}`).join("\n");
+  syncSched(); $("#dlg").showModal();
+}
+$("#form").onsubmit = async ev => {
+  ev.preventDefault();
+  const filters = {};
+  for (const line of $("#f-filters").value.split("\n")) { const i = line.indexOf("="); if (i > 0) filters[line.slice(0, i).trim()] = line.slice(i + 1).trim(); }
+  const st = $("#f-sched").value;
+  const body = {name: $("#f-name").value, enabled: $("#f-enabled").checked, filters, action: $("#f-action").value,
+    sources: [$("#f-bci").checked && "bci", $("#f-e1").checked && "estimateone"].filter(Boolean),
+    window_days: +$("#f-window").value, crossref: $("#f-xref").checked, threshold: +$("#f-th").value,
+    schedule: st === "interval" ? {type: st, minutes: +$("#f-min").value} : st === "daily" ? {type: st, time: $("#f-time").value} : {type: "manual"}};
+  try {
+    await api(editing ? "/api/automations/" + editing.id : "/api/automations", {method: editing ? "PUT" : "POST", body: JSON.stringify(body)});
+    $("#dlg").close(); loadAutos();
+  } catch (e) { $("#ferr").textContent = e.message; }
+};
+
+// ---- history
+async function loadRuns() {
+  const runs = await api("/api/runs");
+  $("#runtable tbody").innerHTML = runs.map(r => `<tr><td>${esc(r.started.replace("T", " "))}</td><td>${esc(r.automation)}</td><td>${esc(r.action)}</td>
+    <td><span class="badge ${r.status === "ok" ? "live" : r.status === "partial" ? "demo" : "off"}">${r.status}</span> ${esc(r.message)}</td>
+    <td class="small">BCI ${r.fetched?.bci ?? "-"} · E1 ${r.fetched?.estimateone ?? "-"}${r.crossref ? ` · ${r.crossref.matched} matched` : ""}
+      ${Object.entries(r.counts || {}).map(([k, c]) => `<div>${k}: ${c.created} created, ${c.updated} updated, ${c.failed} failed</div>`).join("")}
+      ${(r.files || []).map(f => `<div><a href="/api/exports/${encodeURIComponent(f)}">${esc(f)}</a></div>`).join("")}</td></tr>`).join("") || `<tr><td colspan="5" class="small">No runs yet.</td></tr>`;
+}
+
+loadXref(false);
+</script>
+</body>
+</html>
