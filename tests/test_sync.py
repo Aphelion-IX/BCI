@@ -62,3 +62,77 @@ def test_xml_escapes_and_strips_control_chars():
     from bci_sync.export import to_xml
     x = to_xml([{"A": "a<b&\x01", "B": None}])
     assert "a&lt;b&amp;" in x and "\x01" not in x and "<b />" in x
+
+
+E1_PAGES = [
+    {"data": [{"projectId": "p1", "projectName": "Tower", "address": "1 St", "category": "Commercial",
+               "budget": {"low": 1, "high": None}, "status": "Active", "url": "u",
+               "consultants": [{"name": "Arch", "website": None}],
+               "tenders": [{"id": "t2", "name": "Late", "quotesDueAt": "2026-12-01", "status": "Open",
+                            "matchedKeywords": ["steel"]},
+                           {"id": "t1", "name": "Early", "quotesDueAt": "2026-11-01", "status": "Open",
+                            "builder": {"name": "BuildCo"}, "matchedKeywords": ["glass", "steel"]}],
+               "tenderingSubcontractors": []}],
+     "_metadata": {"nextCursor": "c2", "hasNextPage": True}},
+    {"data": [{"projectId": "p2", "projectName": "Shed", "tenders": [{"id": "t3"}]}],
+     "_metadata": {"nextCursor": None, "hasNextPage": False}},
+]
+
+
+class FakeResp:
+    def __init__(self, body, status=200):
+        self.body, self.status_code = body, status
+
+    def raise_for_status(self):
+        if self.status_code >= 400:
+            raise RuntimeError(self.status_code)
+
+    def json(self):
+        return self.body
+
+
+class FakeHttp:
+    def __init__(self):
+        self.gets = []
+
+    def post(self, url, **kw):
+        return FakeResp({"access_token": "tok", "expires_in": 3600})
+
+    def get(self, url, params=None, headers=None, **kw):
+        self.gets.append((url, params, headers))
+        if len(self.gets) == 1:
+            return FakeResp({}, 429)  # throttled once, must retry
+        return FakeResp(E1_PAGES[0] if "cursor" not in params else E1_PAGES[1])
+
+
+def test_e1_paginates_retries_and_flattens(monkeypatch):
+    from bci_sync import estimateone
+    from bci_sync.estimateone import EstimateOneClient, flatten
+    monkeypatch.setattr(estimateone.time, "sleep", lambda s: None)
+    http = FakeHttp()
+    projects = list(EstimateOneClient("cid", "sec", "123", session=http).results())
+    assert [p["projectId"] for p in projects] == ["p1", "p2"]
+    assert http.gets[1][0].endswith("/api/tender/supplier/v1/companies/123/speci-finder/results")
+    assert http.gets[1][2] == {"Authorization": "Bearer tok", "x-e1-client-id": "cid"}
+    assert http.gets[2][1]["cursor"] == "c2"
+    row = flatten(projects[0])
+    assert row["TENDER_ID"] == "t1" and row["BUILDER"] == "BuildCo" and row["BUDGET_HIGH"] is None
+    assert row["MATCHED_KEYWORDS"] == "glass, steel" and row["CONSULTANTS"] == "Arch"
+    assert flatten(projects[1])["TENDER_ID"] == "t3"
+
+
+def test_run_estimateone_upserts_and_exports(tmp_path):
+    from bci_sync.sync import run_estimateone
+    cfg = {"estimateone": {"entity_set": "new_e1projects",
+                           "key": {"crm_field": "new_e1projectid", "bci_field": "PROJECTID"},
+                           "mapping": {"new_name": "PROJECT_NAME"}}}
+
+    class FakeE1:
+        def results(self):
+            return [E1_PAGES[1]["data"][0]]
+
+    crm = FakeCrm()
+    out = tmp_path / "e1.xml"
+    res = run_estimateone(cfg, FakeE1(), crm, export_xml=str(out))
+    assert res["estimateone"]["created"] == 1 and crm.calls[0][2:] == ("p2", {"new_name": "Shed"})
+    assert "<project_name>Shed</project_name>" in out.read_text()

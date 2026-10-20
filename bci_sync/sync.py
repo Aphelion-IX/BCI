@@ -9,6 +9,7 @@ import yaml
 
 from .bci import BciClient
 from .dynamics import DynamicsClient
+from .estimateone import EstimateOneClient, flatten
 from .export import write_xml
 
 log = logging.getLogger("bci_sync")
@@ -87,22 +88,42 @@ def run(cfg, bci, crm, dry_run=False, export_xml=None):
     return results
 
 
+def run_estimateone(cfg, e1, crm, dry_run=False, export_xml=None):
+    """Sync EstimateOne Speci-finder matches into the CRM (one row per project)."""
+    e1_cfg = cfg["estimateone"]
+    rows = [flatten(p) for p in e1.results()]
+    log.info("fetched %d projects from EstimateOne", len(rows))
+    if export_xml:
+        write_xml(export_xml, rows, root="projects", item="project")
+        log.info("wrote %d EstimateOne projects to %s", len(rows), export_xml)
+    return {"estimateone": sync_entity(rows, e1_cfg, crm, dry_run or crm is None)}
+
+
 def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--config", default="config.yaml")
     ap.add_argument("--dry-run", action="store_true", help="fetch from BCI and print mapped records; write nothing to CRM")
     ap.add_argument("--export-xml", metavar="FILE", help="also write the fetched projects to an XML file")
+    ap.add_argument("--export-e1-xml", metavar="FILE", help="also write EstimateOne matches to an XML file")
+    ap.add_argument("--source", choices=["bci", "estimateone", "all"], default="all",
+                    help="which source to pull (estimateone/all need the E1 settings in config.yaml and env)")
     ap.add_argument("--export-only", action="store_true", help="with --export-xml: skip the CRM entirely")
     args = ap.parse_args(argv)
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
     with open(args.config) as fh:
         cfg = yaml.safe_load(fh)
     env = os.environ
-    bci = BciClient(env["BCI_CLIENT_ID"], env["BCI_PASSWORD"])
     skip_crm = args.dry_run or args.export_only
     crm = None if skip_crm else DynamicsClient(
         env["DYNAMICS_ORG_URL"], env["AZURE_TENANT_ID"], env["AZURE_CLIENT_ID"], env["AZURE_CLIENT_SECRET"])
-    results = run(cfg, bci, crm, args.dry_run, args.export_xml)
+    results = {}
+    if args.source in ("bci", "all"):
+        bci = BciClient(env["BCI_CLIENT_ID"], env["BCI_PASSWORD"])
+        results.update(run(cfg, bci, crm, args.dry_run, args.export_xml))
+    # With the default "all", EstimateOne is included only when it is configured and enabled.
+    if args.source == "estimateone" or (args.source == "all" and (cfg.get("estimateone") or {}).get("enabled")):
+        e1 = EstimateOneClient(env["E1_CLIENT_ID"], env["E1_CLIENT_SECRET"], env["E1_COMPANY_ID"])
+        results.update(run_estimateone(cfg, e1, crm, args.dry_run, args.export_e1_xml))
     log.info("done %s", results)
     return 1 if any(r["failed"] for r in results.values()) else 0
 

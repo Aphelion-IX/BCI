@@ -53,3 +53,29 @@ companies:
     websiteurl: WEBSITE
     address1_city: TOWN
     address1_postalcode: POSTCODE
+
+# EstimateOne Speci-finder matches (tenders matching your account's Speci-finder keywords).
+# API: GET /api/tender/supplier/v1/companies/{companyId}/speci-finder/results
+# Env: E1_CLIENT_ID, E1_CLIENT_SECRET, E1_COMPANY_ID (the "Account #" in the E1 web app).
+# The API returns all currently open matches each run, so every run upserts the full set.
+estimateone:
+  enabled: false
+  entity_set: new_e1projects
+  key:
+    crm_field: new_e1projectid         # alternate key (text) on that table
+    bci_field: PROJECTID               # flattened field name, see bci_sync/estimateone.py
+  mapping:
+    new_name: PROJECT_NAME
+    new_address: ADDRESS
+    new_category: CATEGORY
+    new_status: STATUS
+    new_url: URL
+    new_budgetlow: BUDGET_LOW
+    new_budgethigh: BUDGET_HIGH
+    new_tendername: TENDER_NAME
+    new_tenderstatus: TENDER_STATUS
+    new_quotesdue: QUOTES_DUE_AT
+    new_builder: BUILDER
+    new_keywords: MATCHED_KEYWORDS
+    new_consultants: CONSULTANTS
+    new_subcontractors: TENDERING_SUBCONTRACTORS

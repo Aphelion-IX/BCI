@@ -25,3 +25,6 @@ jobs:
           AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
           AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
           AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+          E1_CLIENT_ID: ${{ secrets.E1_CLIENT_ID }}
+          E1_CLIENT_SECRET: ${{ secrets.E1_CLIENT_SECRET }}
+          E1_COMPANY_ID: ${{ secrets.E1_COMPANY_ID }}

@@ -14,6 +14,20 @@ Runs daily via GitHub Actions; safe to re-run (upserts on an alternate key).
 4. Set your `filters` (states, categories, stages, value...) in `config.yaml`.
 5. Run the workflow manually with **dry run** first, check the log, then let the schedule take over.
 
+## EstimateOne (Speci-finder)
+A second source: matched open tenders from the EstimateOne Supplier API
+(`GET /api/tender/supplier/v1/companies/{companyId}/speci-finder/results`, OAuth2 client credentials, scope `speci-finder/read`).
+Set `estimateone.enabled: true` in `config.yaml`, add secrets `E1_CLIENT_ID`, `E1_CLIENT_SECRET`, `E1_COMPANY_ID`
+(your "Account #"), and create the `new_e1projects` table with an alternate key on `new_e1projectid` (text).
+Each project is flattened to one row (earliest-closing tender for the headline columns; consultants, subcontractors,
+keywords joined). The client follows the cursor pagination and backs off on 429/5xx (limit is 100 requests per 5 minutes).
+Note: the API only returns data if Speci-finder keywords are configured on the E1 account; consultants need the E1 add-on.
+
+```
+python -m bci_sync.sync --source estimateone --dry-run
+python -m bci_sync.sync --source estimateone --export-only --export-e1-xml e1.xml
+```
+
 ## Local use
 ```
 pip install -r requirements.txt
