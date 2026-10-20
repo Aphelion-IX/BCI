@@ -47,3 +47,18 @@ def test_dry_run_writes_nothing():
     crm = FakeCrm()
     run(CFG, FakeBci(), crm, dry_run=True)
     assert crm.calls == []
+
+
+def test_export_xml(tmp_path):
+    import xml.etree.ElementTree as ET
+    out = tmp_path / "p.xml"
+    run(CFG, FakeBci(), FakeCrm(), export_xml=str(out))
+    root = ET.parse(out).getroot()
+    assert root.get("count") == "2"
+    assert root[0].find("project_name").text == " School "
+
+
+def test_xml_escapes_and_strips_control_chars():
+    from bci_sync.export import to_xml
+    x = to_xml([{"A": "a<b&\x01", "B": None}])
+    assert "a&lt;b&amp;" in x and "\x01" not in x and "<b />" in x

@@ -19,8 +19,10 @@ Runs daily via GitHub Actions; safe to re-run (upserts on an alternate key).
 pip install -r requirements.txt
 export BCI_CLIENT_ID=... BCI_PASSWORD=...
 python -m bci_sync.sync --dry-run      # fetch + show mapped records only
+python -m bci_sync.sync --export-xml out.xml --export-only   # XML file only, no CRM needed
 python -m pytest
 ```
+`--export-xml` can also be combined with a normal run to save a copy of each batch.
 
 ## Notes
 - Incremental by default: each run fetches projects updated in the last `window_days` (overlap makes missed runs harmless).

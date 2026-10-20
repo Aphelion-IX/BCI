@@ -9,6 +9,7 @@ import yaml
 
 from .bci import BciClient
 from .dynamics import DynamicsClient
+from .export import write_xml
 
 log = logging.getLogger("bci_sync")
 
@@ -61,7 +62,7 @@ def sync_entity(rows, entity_cfg, crm, dry_run):
     return counts
 
 
-def run(cfg, bci, crm, dry_run=False):
+def run(cfg, bci, crm, dry_run=False, export_xml=None):
     filters = build_filters(cfg)
     if "updatedate" not in filters and "updatedate_from" not in filters:
         filters["updatedate"] = cfg.get("window_days", 2)  # overlapping window; upserts are idempotent
@@ -69,7 +70,10 @@ def run(cfg, bci, crm, dry_run=False):
     fields = sorted({v.upper() for v in projects_cfg["mapping"].values()} | {projects_cfg["key"]["bci_field"].upper()})
     projects = list(bci.projects(filters, fields=fields, since_last=cfg.get("since_last", False)))
     log.info("fetched %d projects from BCI", len(projects))
-    results = {"projects": sync_entity(projects, projects_cfg, crm, dry_run)}
+    if export_xml:
+        write_xml(export_xml, projects)
+        log.info("wrote %d projects to %s", len(projects), export_xml)
+    results = {"projects": sync_entity(projects, projects_cfg, crm, dry_run or crm is None)}
 
     companies_cfg = cfg.get("companies")
     if companies_cfg and companies_cfg.get("enabled") and projects:
@@ -87,15 +91,18 @@ def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--config", default="config.yaml")
     ap.add_argument("--dry-run", action="store_true", help="fetch from BCI and print mapped records; write nothing to CRM")
+    ap.add_argument("--export-xml", metavar="FILE", help="also write the fetched projects to an XML file")
+    ap.add_argument("--export-only", action="store_true", help="with --export-xml: skip the CRM entirely")
     args = ap.parse_args(argv)
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
     with open(args.config) as fh:
         cfg = yaml.safe_load(fh)
     env = os.environ
     bci = BciClient(env["BCI_CLIENT_ID"], env["BCI_PASSWORD"])
-    crm = None if args.dry_run else DynamicsClient(
+    skip_crm = args.dry_run or args.export_only
+    crm = None if skip_crm else DynamicsClient(
         env["DYNAMICS_ORG_URL"], env["AZURE_TENANT_ID"], env["AZURE_CLIENT_ID"], env["AZURE_CLIENT_SECRET"])
-    results = run(cfg, bci, crm, args.dry_run)
+    results = run(cfg, bci, crm, args.dry_run, args.export_xml)
     log.info("done %s", results)
     return 1 if any(r["failed"] for r in results.values()) else 0
 
